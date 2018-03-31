@@ -1,0 +1,28 @@
+{
+   "default_settings":{
+      "destinations":[
+         {
+            "path":"C:/Users/Hunters/Videos/unsorted/",
+            "filestokeep":10
+         }
+      ]
+   },
+   "test.test.test":{
+      "destinations":[
+         {
+            "path":"C:\\Users\\Hunters\\Desktop\\tmp2\\isit\\",
+            "filestokeep":10
+         },
+         {
+            "path":"C:\\Users\\Hunters\\Desktop\\tmp2\\nojoke\\"
+         }
+      ]
+   },
+   "test.test.test.tefa":{
+     "destinations":[
+       {
+         "path": "C:\\temp\\"
+       }
+     ]
+   }
+}
