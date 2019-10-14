@@ -11,28 +11,41 @@ require 'fileutils'
 # SETUP - MODIFY THESE AS REQUIRED
 # ---------------------------------------------------------------------
 
-$log = Logger.new( "#{File.dirname(__FILE__)}\\extractFilestoDir.log", 'monthly' )
-settings_file = "#{File.dirname(__FILE__)}\\extract_and_move_settings.json"
+$log = Logger.new( "#{File.dirname(__FILE__)}/extractFilestoDir.log", 'monthly' )
+settings_file = "#{File.dirname(__FILE__)}/extract_and_move_settings.json"
 settings_hash = JSON.parse(File.read(settings_file))
 
 # get our subset of just the default
 default_files_to_keep = settings_hash['default_settings']['destinations'][0]['filestokeep']
 default_torrent_dir = settings_hash['default_settings']['destinations'][0]['path']
 
-# Set 7Zip path
-$zip = 'c:\apps\7-Zip\7Z.exe'
-#convert command
-$convert = 'C:\apps\ffmpeg\bin\ffmpeg'
+if (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) 
+  $zip = 'c:\apps\7-Zip\7Z.exe'
+  $convert = 'C:\apps\ffmpeg\bin\ffmpeg'
+elsif (/darwin/ =~ RUBY_PLATFORM)
+  $zip = 'unrar'
+  $convert = 'ffmpeg'
+elsif (RUBY_PLATFORM =~ /linux/)
+  $zip = 'unrar'
+  $convert = ''
+end
 
 # ---------------------------------------------------------------------
 # DO NOT MODIFY BELOW THIS LINE
 # ---------------------------------------------------------------------
+
+SEASON_EPISODE_REGEX = %r{S(?<season>\d{1,2})E(?<episode>\d{1,2})}
+
 def unzip(torrent_directory, destination)
   Dir.chdir("#{torrent_directory}")
   # give me a list of the rar and zip files
   zipfiles = Dir.glob("**/*.{rar,zip}")
   zipfiles.reverse.each do |f|
-    cmd = "#{$zip} e -o\"#{destination}\" \"#{f}\" -aoa"
+    if ('unrar' == $zip) 
+      cmd = "#{$zip} e -o+ \"#{f}\" \"#{destination}\" "
+    else
+      cmd = "#{$zip} e -o\"#{destination}\" \"#{f}\" -aoa"
+    end
     system cmd
     if $?
       $log.info "Extracted: #{f} into #{destination}"
@@ -102,8 +115,15 @@ end
 
 def extractFiles(torrent_directory, destinations, title)
   hash_of_files = Hash.new
+  if matches = title.match(SEASON_EPISODE_REGEX)
+    season = matches[:season]
+    # ("Season:#{matches[:season]} Episode:#{matches[:episode]}")
+  end
   destinations.each do |destination|
     # create the destination if it doesnt exist
+    if defined?(season)
+      destination = "#{destination}/#{season}"
+    end
     if File.directory?(destination)
       puts "creating mtime #{Time.new} on #{destination}"
       File.utime(Time.new, File.atime(destination), destination)
@@ -116,7 +136,9 @@ def extractFiles(torrent_directory, destinations, title)
     else
       unzip(torrent_directory, destination)
       # we need to convert files
-      hash_of_files = post_process_extracts(destination)
+      if ($convert != '')
+        hash_of_files = post_process_extracts(destination)
+      end
     end
   end
 end
@@ -147,20 +169,23 @@ def cleanup(destination, maxfilecount)
 end
 
 # this is our main
-if (ARGV.length < 2)
-  print 'Enter the TorrentDir: '
-  torrentDir = gets.chomp
-  print 'Enter the torrentTitle: '
-  torrentTitle = gets.chomp
-else
+if (ARGV.length == 2)
   # Get directory of zip to extract from arguments
   torrentDir = ARGV[0]
   # Get filename from arguments
   torrentTitle = ARGV[1]
+elsif (ARGV.length == 1)
+  torrentDir = ARGV[0]
+  torrentTitle = torrentDir
+else 
+  print 'Enter the TorrentDir: '
+  torrentDir = gets.chomp
+  torrentTitle = torrentDir
 end
 
 # throw some crap in the log
 $log.info "Start: Using path and title:  #{torrentDir} #{torrentTitle}"
+torrentDir = File.expand_path(torrentDir)
 
 # note this only finds the first match in our settings, hopefully we are specific
 item_match = settings_hash.select { |key, _| torrentTitle.downcase.include? key.downcase }
